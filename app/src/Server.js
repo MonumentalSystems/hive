@@ -3681,9 +3681,12 @@ function startServer() {
         const OIDCUserAuthenticated = OIDC.enabled && req.oidc.isAuthenticated();
         // [gnostr.cloud fork] Upstream reads `authHost.authenticated`, which is never
         // set anywhere in the codebase, so this always evaluates falsy and the host
-        // can never create a new room. The intended source of truth is `hostCfg.authenticated`,
-        // which IS toggled by /login and the IP-allowlist checks.
-        const hostUserAuthenticated = hostCfg.protected && hostCfg.authenticated;
+        // can never create a new room. We can't substitute the global `hostCfg.authenticated`
+        // either — it's a process-wide flag that any single login sets to true forever,
+        // letting subsequent unauthenticated visitors in. Use the per-IP allowlist
+        // (the same `allowedIP` check the other route handlers use) so each request
+        // is gated on the caller's own login state.
+        const hostUserAuthenticated = hostCfg.protected && allowedIP(getIP(req));
         const roomExist = roomList.has(roomId);
         const roomCount = roomList.size;
 
