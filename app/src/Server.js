@@ -875,8 +875,12 @@ function startServer() {
             }
             // 2. Protect room access with configuration check
             if (!OIDC.enabled && hostCfg.protected && !hostCfg.users_from_db) {
+                // [gnostr.cloud fork] Support '*' wildcard in allowed_rooms so a single
+                // shared-credential user can host any room. Upstream only does literal match.
                 const roomExists = hostCfg.users.some(
-                    (user) => user.allowed_rooms && user.allowed_rooms.includes(roomId),
+                    (user) =>
+                        user.allowed_rooms &&
+                        (user.allowed_rooms.includes('*') || user.allowed_rooms.includes(roomId)),
                 );
                 log.debug('/join/:roomId exists from config allowed rooms', roomExists);
                 return roomExists ? res.send(htmlWithOG) : res.redirect('/whoAreYou/' + roomId);
@@ -3675,7 +3679,11 @@ function startServer() {
     function isAllowedRoomAccess(logMessage, req, hostCfg, authHost, roomList, roomId) {
         console.log('roomList type:', typeof roomList, roomList instanceof Map, roomList);
         const OIDCUserAuthenticated = OIDC.enabled && req.oidc.isAuthenticated();
-        const hostUserAuthenticated = hostCfg.protected && authHost.authenticated;
+        // [gnostr.cloud fork] Upstream reads `authHost.authenticated`, which is never
+        // set anywhere in the codebase, so this always evaluates falsy and the host
+        // can never create a new room. The intended source of truth is `hostCfg.authenticated`,
+        // which IS toggled by /login and the IP-allowlist checks.
+        const hostUserAuthenticated = hostCfg.protected && hostCfg.authenticated;
         const roomExist = roomList.has(roomId);
         const roomCount = roomList.size;
 
