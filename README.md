@@ -1,3 +1,22 @@
+<!--
+  This repo is `MonumentalSystems/hive`, a fork of HiveTalk/hivetalksfu
+  customised for the public deployment at https://hive.gnostr.cloud.
+  AGPL §5 modification notice → NOTICE.md
+  We periodically merge fixes from the upstream HiveTalk/hivetalksfu repo —
+  to keep merges painless, gnostr.cloud customisations live in clearly named
+  files (`gnostr-theme.css`, `wizards_hive.png`, `hive-mark.svg`, `NOTICE.md`,
+  this README header). Avoid editing other upstream files unless necessary;
+  when you do, leave a comment explaining why.
+  Operational details (host, network topology, credentials) live only on
+  the deployment host and are intentionally not in this public repo.
+-->
+
+> **MonumentalSystems/hive** — fork running at <https://hive.gnostr.cloud>.
+> See [`NOTICE.md`](./NOTICE.md) for the AGPL §5 modification notice.
+> The original upstream README starts below.
+
+---
+
 <h1 align="center">Vanilla HiveTalk </h1>
 
 ## Vanilla HiveTalk is a Fork of MiroTalk SFU, with **Nostr** and **Bitcoin Lightning** Enhancements.

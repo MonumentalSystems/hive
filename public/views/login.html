@@ -3,7 +3,7 @@
     <head>
         <!-- Title and Icon -->
 
-        <title id="title">HiveTalk SFU - Host Protected login required.</title>
+        <title id="title">Hive · gnostr.cloud — knock at the door</title>
         <link id="icon" rel="shortcut icon" href="../images/logo.svg" />
         <link id="appleTouchIcon" rel="apple-touch-icon" href="../images/logo.svg" />
 
@@ -16,7 +16,7 @@
         <meta
             id="description"
             name="description"
-            content="HiveTalk SFU powered by WebRTC and mediasoup, Real-time Simple Secure Fast video calls, messaging and screen sharing capabilities in the browser."
+            content="Hive on gnostr.cloud — sign in to join the wizards' hangout."
         />
         <meta
             id="keywords"
@@ -27,19 +27,16 @@
         <!-- https://ogp.me -->
 
         <meta id="ogType" property="og:type" content="app-webrtc" />
-        <meta id="ogSiteName" property="og:site_name" content="HiveTalk SFU" />
-        <meta id="ogTitle" property="og:title" content="Click the link to make a call." />
-        <meta
-            id="ogDescription"
-            property="og:description"
-            content="HiveTalk SFU calling provides real-time video calls, messaging and screen sharing."
-        />
-        <meta id="ogImage" property="og:image" content="https://vanilla.hivetalk.org/images/hivetalk.png" />
-        <meta id="ogUrl" property="og:url" content="https://vanilla.hivetalk.org" />
+        <meta id="ogSiteName" property="og:site_name" content="Hive · gnostr.cloud" />
+        <meta id="ogTitle" property="og:title" content="Hive · gnostr.cloud — knock at the door." />
+        <meta id="ogDescription" property="og:description" content="Sign in to the wizards' hangout." />
+        <meta id="ogImage" property="og:image" content="https://hive.gnostr.cloud/images/wizards_hive.png" />
+        <meta id="ogUrl" property="og:url" content="https://hive.gnostr.cloud" />
 
         <!-- StyleSheet -->
 
         <link rel="stylesheet" type="text/css" href="../css/landing.css" />
+    <link rel="stylesheet" type="text/css" href="../css/gnostr-theme.css" />
 
         <!-- Bootstrap 5 -->
 
@@ -76,7 +73,12 @@
             <header class="site-header">
                 <div class="container">
                     <div class="site-header-inner">
-                        <div class="brand header-brand"></div>
+                        <div class="brand header-brand">
+                            <a href="/">
+                                <img class="header-logo-image" src="../images/hive-mark.svg" alt="hive.gnostr.cloud" width="44" height="44" />
+                                <span class="brand-text">hive · gnostr.cloud</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -87,13 +89,17 @@
                         <div class="hero-inner">
                             <div class="hero-copy">
                                 <div id="loginForm">
+                                    <h1 class="hero-title mt-0">Knock at the door.</h1>
+                                    <p class="hero-paragraph">
+                                        Speak the password to enter the hive.
+                                    </p>
                                     <br />
                                     <div class="mb-12">
                                         <input
                                             id="username"
                                             class="form-input"
                                             type="name"
-                                            placeholder="Username"
+                                            placeholder="Wizard name"
                                             maxlength="36"
                                             required
                                         />
@@ -104,7 +110,7 @@
                                             id="password"
                                             class="form-input"
                                             type="password"
-                                            placeholder="Password"
+                                            placeholder="Passphrase"
                                             maxlength="36"
                                             required
                                         />
@@ -119,9 +125,8 @@
                                 <div id="joinRoomForm" class="mb-12">
                                     <div class="hero-copy reveal-from-bottom">
                                         <h1 class="hero-title mt-0">
-                                            Pick name. <br />
-                                            Share URL. <br />
-                                            Start conference.
+                                            Welcome, wizard. <br />
+                                            Pick a chamber.
                                         </h1>
                                     </div>
                                     <br />
@@ -150,34 +155,22 @@
                     <div class="site-footer-inner">
                         <div class="brand footer-brand">
                             <a href="/">
-                                <img class="header-logo-image" src="../images/hivelogo50x200.svg" alt="Logo" />
+                                <img class="header-logo-image" src="../images/hive-mark.svg" alt="hive.gnostr.cloud" width="36" height="36" />
+                                <span class="brand-text">hive · gnostr.cloud</span>
                             </a>
                         </div>
                         <ul class="footer-links list-reset">
-                            <li>
-                                <a href="/about">About</a>
-                            </li>
-                            <li>
-<<<<<<< HEAD
-                                <a href="/privacy">Privacy</a>
-=======
-                                <a href="/privacy">Privacy Policy</a>
-                            </li>
-                            <li>
-                                <a href="https://sfu.mirotalk.com/api/v1/docs/">Rest API</a>
-                            </li>
-                            <li>
-                                Contact:
-                                <a target="_blank" href="https://www.linkedin.com/in/miroslav-pejic-976a07101/"
-                                    >Miroslav Pejic</a
-                                >
->>>>>>> upstream/main
-                            </li>
+                            <li><a href="/about">About</a></li>
+                            <li><a href="/privacy">Privacy</a></li>
+                            <li><a href="https://gnostr.cloud" target="_blank" rel="noopener noreferrer">gnostr.cloud</a></li>
                         </ul>
-                        <ul>
-                            <!-- add social icons here-->
-                        </ul>
-                        <div class="footer-copyright">&copy; 2024 HiveTalk, all rights reserved</div>
+                        <div class="footer-copyright">
+                            Hive is a fork of
+                            <a href="https://github.com/HiveTalk/hivetalksfu" target="_blank" rel="noopener noreferrer">HiveTalk SFU</a>,
+                            modified by Monumental Systems for <strong>gnostr.cloud</strong>.
+                            Source (AGPL-3.0):
+                            <a href="https://github.com/MonumentalSystems/hive" target="_blank" rel="noopener noreferrer">github.com/MonumentalSystems/hive</a>.
+                        </div>
                     </div>
                 </div>
             </footer>
