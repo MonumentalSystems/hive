@@ -1400,6 +1400,150 @@ function startServer() {
         });
     });
 
+    // Native server-side bot participant lifecycle.
+    // These endpoints are intentionally API-secret protected and scoped to trusted room automation.
+    app.post([restApi.basePath + '/bots'], async (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk create bot');
+        if (!api) return;
+
+        try {
+            const data = req.body || {};
+            const roomId = data.roomId || data.room_id || data.room;
+
+            if (!roomId || !Validator.isValidRoomName(roomId)) {
+                return res.status(400).json({ error: 'Valid roomId is required' });
+            }
+
+            const room = await getOrCreateApiRoom(roomId);
+            const bot = room.createBotParticipant({
+                id: data.id,
+                name: data.name,
+                state: data.state,
+                muted: data.muted,
+                controllingNpub: data.controllingNpub,
+                allowedRoomOwnerNpubs: data.allowedRoomOwnerNpubs,
+                frostGroupApproval: data.frostGroupApproval,
+                bridge: data.bridge,
+            });
+
+            res.status(201).json({ bot: bot.toPeerSnapshot(), room: room.id });
+        } catch (error) {
+            log.error('HiveTalk create bot error', error.message);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get([restApi.basePath + '/rooms/:roomId/bots'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk list bots');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        res.json({ bots: room.getBotParticipants().map((bot) => bot.toPeerSnapshot()) });
+    });
+
+    app.delete([restApi.basePath + '/rooms/:roomId/bots/:botId'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk remove bot');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const bot = room.removeBotParticipant(req.params.botId);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        res.json({ removed: true, botId: req.params.botId });
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/mute'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk mute bot');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const muted = req.body && req.body.muted !== undefined ? Boolean(req.body.muted) : true;
+        const bot = room.setBotParticipantMuted(req.params.botId, muted);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        res.json({ bot: bot.toPeerSnapshot() });
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/unmute'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk unmute bot');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const bot = room.setBotParticipantMuted(req.params.botId, false);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        res.json({ bot: bot.toPeerSnapshot() });
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/state'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk set bot state');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        try {
+            const bot = room.setBotParticipantState(req.params.botId, req.body.state);
+            if (!bot) return res.status(404).json({ error: 'Bot not found' });
+            res.json({ bot: bot.toPeerSnapshot() });
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/producers'], async (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk create bot producer');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        try {
+            const result = await room.createBotProducer(req.params.botId, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            log.error('HiveTalk create bot producer error', error.message);
+            res.status(400).json({ error: error.message });
+        }
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/consumers'], async (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk attach bot consumer');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        try {
+            const result = await room.attachBotConsumer(req.params.botId, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            log.error('HiveTalk attach bot consumer error', error.message);
+            res.status(400).json({ error: error.message });
+        }
+    });
+
+    app.post([restApi.basePath + '/rooms/:roomId/bots/:botId/telemetry'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk bot telemetry');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const bot = room.recordBotTelemetry(req.params.botId, req.body || {});
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        res.json({ telemetry: bot.toTelemetry() });
+    });
+
     // ZBD Payment Endpoints
     app.post('/api/zbd/charge', async (req, res) => {
         const { amount, description } = req.body;
@@ -1713,6 +1857,30 @@ function startServer() {
         const worker = workers[nextMediasoupWorkerIdx];
         if (++nextMediasoupWorkerIdx === workers.length) nextMediasoupWorkerIdx = 0;
         return worker;
+    }
+
+    async function getOrCreateApiRoom(roomId) {
+        if (roomList.has(roomId)) return roomList.get(roomId);
+
+        const worker = await getMediasoupWorker();
+        const room = new Room(roomId, worker, io);
+        roomList.set(roomId, room);
+        log.info('[BotParticipant] API created room', { room_id: roomId });
+        return room;
+    }
+
+    function getAuthorizedApi(req, res, label) {
+        const { host, authorization } = req.headers;
+        const api = new ServerApi(host, authorization);
+        if (!api.isAuthorized()) {
+            log.debug(`${label} - Unauthorized`, {
+                header: req.headers,
+                body: req.body,
+            });
+            res.status(403).json({ error: 'Unauthorized!' });
+            return false;
+        }
+        return api;
     }
 
     // ####################################################

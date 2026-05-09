@@ -277,6 +277,73 @@ $ curl -X POST "http://localhost:3010/api/v1/token" -H "authorization: mirotalks
 $ curl -X POST "https://sfu.mirotalk.com/api/v1/token" -H "authorization: mirotalksfu_default_secret" -H "Content-Type: application/json" --data '{"username":"username","password":"password","presenter":"true", "expire":"1h"}'
 ```
 
+### Native bot participant API
+
+Trusted room agents can be attached without Chromium through API-secret protected bot endpoints. A bot is represented as a peer-compatible room entity, so browser clients see it in participant lists and can consume its mediasoup producers normally.
+
+```bash
+# Create a bot participant. Creates the room if needed.
+curl -X POST "http://localhost:3010/api/v1/bots" \
+  -H "authorization: mirotalksfu_default_secret" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "roomId": "Test",
+    "name": "HiveVoiceBot",
+    "controllingNpub": "npub1...",
+    "allowedRoomOwnerNpubs": ["npub1owner..."],
+    "bridge": { "type": "rtp-pcm", "endpoint": "hive-voice-sidecar" }
+  }'
+
+# Set visible bot state.
+curl -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/state" \
+  -H "authorization: mirotalksfu_default_secret" \
+  -H "Content-Type: application/json" \
+  --data '{"state":"thinking"}'
+
+# Create a server-side bot producer backed by mediasoup PlainTransport.
+# The RTP bridge sends Opus/H264 RTP to the returned transport tuple.
+curl -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/producers" \
+  -H "authorization: mirotalksfu_default_secret" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "kind": "audio",
+    "mediaType": "audio",
+    "transport": { "listenIp": "127.0.0.1", "rtcpMux": true, "comedia": true },
+    "rtpParameters": {
+      "codecs": [{
+        "mimeType": "audio/opus",
+        "payloadType": 111,
+        "clockRate": 48000,
+        "channels": 2,
+        "parameters": { "minptime": 10, "useinbandfec": 1 }
+      }],
+      "encodings": [{ "ssrc": 22222222 }]
+    }
+  }'
+
+# Attach a bot-side consumer to an existing room producer for ASR capture.
+curl -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/consumers" \
+  -H "authorization: mirotalksfu_default_secret" \
+  -H "Content-Type: application/json" \
+  --data '{"producerId":"PRODUCER_ID","transport":{"listenIp":"127.0.0.1","rtcpMux":true,"comedia":true}}'
+```
+
+Bot lifecycle endpoints:
+
+- `POST /api/v1/bots`
+- `GET /api/v1/rooms/:roomId/bots`
+- `DELETE /api/v1/rooms/:roomId/bots/:botId`
+- `POST /api/v1/rooms/:roomId/bots/:botId/mute`
+- `POST /api/v1/rooms/:roomId/bots/:botId/unmute`
+- `POST /api/v1/rooms/:roomId/bots/:botId/state`
+- `POST /api/v1/rooms/:roomId/bots/:botId/producers`
+- `POST /api/v1/rooms/:roomId/bots/:botId/consumers`
+- `POST /api/v1/rooms/:roomId/bots/:botId/telemetry`
+
+Auth placeholders are captured on the bot entity today: controlling npub, allowed room owner npubs, and a future FROST approval field. The browser sentinel remains useful as a compatibility harness, but native bots should use the API above.
+
+See [Native BotParticipant API](docs/native-bot-participant.md) for the runbook, RTP bridge notes, and package security checklist.
+
 </details>
 
 <details>

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const Logger = require('./Logger');
+const BotParticipant = require('./BotParticipant');
 const log = new Logger('Room');
 
 const { audioLevelObserverEnabled, activeSpeakerObserverEnabled } = config.mediasoup.router;
@@ -53,11 +54,12 @@ module.exports = class Room {
         this.redirect = config.redirect;
         this.videoAIEnabled = config?.videoAI?.enabled || false;
         this.peers = new Map();
+        this.bots = new Map();
         this.bannedPeers = [];
         this.webRtcTransport = config.mediasoup.webRtcTransport;
         this.router = null;
         this.routerSettings = config.mediasoup.router;
-        this.createTheRouter();
+        this.routerReady = this.createTheRouter();
 
         // RTMP configuration
         this.rtmpFileStreamer = null;
@@ -101,6 +103,7 @@ module.exports = class Room {
             thereIsPolls: this.thereIsPolls(),
             shareMediaData: this.shareMediaData,
             peers: JSON.stringify([...this.peers]),
+            bots: this.getBotParticipants().map((bot) => bot.toPeerSnapshot()),
         };
     }
 
@@ -513,6 +516,284 @@ module.exports = class Room {
         return producerList;
     }
 
+    // ####################################################
+    // BOT PARTICIPANTS
+    // ####################################################
+
+    createBotParticipant(data = {}) {
+        const bot = new BotParticipant(this.id, data);
+
+        if (this.peers.has(bot.id)) {
+            throw new Error(`Bot participant "${bot.id}" already exists`);
+        }
+
+        this.bots.set(bot.id, bot);
+        this.peers.set(bot.id, bot);
+
+        log.info('[BotParticipant] joined', {
+            room_id: this.id,
+            bot_id: bot.id,
+            bot_name: bot.peer_name,
+            controlling_npub: bot.auth.controllingNpub,
+        });
+
+        this.sendToAll('botParticipantCreated', bot.toPeerSnapshot());
+        this.sendToAll('refreshParticipantsCount', { peer_counts: this.getPeersCount() });
+
+        return bot;
+    }
+
+    getBotParticipant(botId) {
+        return this.bots.get(botId);
+    }
+
+    getBotParticipants() {
+        return Array.from(this.bots.values());
+    }
+
+    removeBotParticipant(botId) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) return;
+
+        bot.close();
+        this.bots.delete(botId);
+        this.peers.delete(botId);
+
+        const data = {
+            room_id: this.id,
+            peer_id: botId,
+            peer_name: bot.peer_name,
+            peer_counts: this.getPeersCount(),
+            isPresenter: false,
+            isBot: true,
+        };
+
+        log.info('[BotParticipant] removed', {
+            room_id: this.id,
+            bot_id: botId,
+            bot_name: bot.peer_name,
+        });
+
+        this.sendToAll('removeMe', data);
+        return bot;
+    }
+
+    setBotParticipantMuted(botId, muted) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) return;
+
+        bot.setMuted(muted);
+        this.sendToAll('updatePeerInfo', {
+            peer_id: bot.id,
+            peer_name: bot.peer_name,
+            type: 'audio',
+            status: !bot.muted,
+            peer_bot: true,
+            peer_bot_state: bot.state,
+            broadcast: true,
+        });
+
+        log.info('[BotParticipant] mute changed', {
+            room_id: this.id,
+            bot_id: bot.id,
+            muted: bot.muted,
+        });
+
+        return bot;
+    }
+
+    setBotParticipantState(botId, state) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) return;
+
+        bot.setState(state);
+        this.sendToAll('botParticipantState', {
+            peer_id: bot.id,
+            peer_name: bot.peer_name,
+            state: bot.state,
+        });
+        this.sendToAll('updatePeerInfo', {
+            peer_id: bot.id,
+            peer_name: bot.peer_name,
+            type: 'botState',
+            status: bot.state,
+            peer_bot: true,
+            peer_bot_state: bot.state,
+            broadcast: true,
+        });
+
+        log.info('[BotParticipant] state changed', {
+            room_id: this.id,
+            bot_id: bot.id,
+            state: bot.state,
+        });
+
+        return bot;
+    }
+
+    async createBotPlainTransport(options = {}) {
+        if (this.routerReady) await this.routerReady;
+
+        const listenInfo = {
+            protocol: 'udp',
+            ip: options.listenIp || '127.0.0.1',
+            announcedAddress: options.announcedAddress,
+            port: options.port,
+        };
+
+        Object.keys(listenInfo).forEach((key) => listenInfo[key] === undefined && delete listenInfo[key]);
+
+        const transport = await this.router.createPlainTransport({
+            listenInfo,
+            rtcpMux: options.rtcpMux !== undefined ? Boolean(options.rtcpMux) : true,
+            comedia: options.comedia !== undefined ? Boolean(options.comedia) : true,
+            enableSrtp: Boolean(options.enableSrtp),
+            enableSctp: Boolean(options.enableSctp),
+        });
+
+        if (options.remoteIp && options.remotePort) {
+            await transport.connect({
+                ip: options.remoteIp,
+                port: options.remotePort,
+                rtcpPort: options.remoteRtcpPort,
+                srtpParameters: options.srtpParameters,
+            });
+        }
+
+        return transport;
+    }
+
+    async createBotProducer(botId, data = {}) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) throw new Error(`Bot participant "${botId}" not found`);
+
+        const { kind, rtpParameters, mediaType } = data;
+        if (!['audio', 'video'].includes(kind)) throw new Error('Bot producer kind must be "audio" or "video"');
+        if (!rtpParameters) throw new Error('Bot producer rtpParameters are required');
+
+        const transport = await this.createBotPlainTransport(data.transport || {});
+        const producer = await transport.produce({
+            kind,
+            rtpParameters,
+            appData: {
+                mediaType: mediaType || kind,
+                peerId: bot.id,
+                peerName: bot.peer_name,
+                bot: true,
+                bridge: bot.bridge,
+            },
+        });
+
+        bot.addProducer(producer, transport, { mediaType: mediaType || kind });
+
+        this.broadCast(bot.id, 'newProducers', [
+            {
+                producer_id: producer.id,
+                producer_socket_id: bot.id,
+                peer_name: bot.peer_name,
+                peer_info: bot.peer_info,
+                type: mediaType || kind,
+            },
+        ]);
+
+        log.info('[BotParticipant] producer created', {
+            room_id: this.id,
+            bot_id: bot.id,
+            producer_id: producer.id,
+            kind,
+            tuple: transport.tuple,
+        });
+
+        return {
+            bot: bot.toPeerSnapshot(),
+            producer: {
+                id: producer.id,
+                kind: producer.kind,
+                type: mediaType || kind,
+            },
+            transport: {
+                id: transport.id,
+                tuple: transport.tuple,
+                rtcpTuple: transport.rtcpTuple,
+                srtpParameters: transport.srtpParameters,
+            },
+        };
+    }
+
+    async attachBotConsumer(botId, data = {}) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) throw new Error(`Bot participant "${botId}" not found`);
+
+        const { producerId } = data;
+        if (!producerId) throw new Error('producerId is required');
+
+        const rtpCapabilities = data.rtpCapabilities || this.router.rtpCapabilities;
+
+        if (
+            !this.router.canConsume({
+                producerId,
+                rtpCapabilities,
+            })
+        ) {
+            throw new Error(`Bot cannot consume producer "${producerId}" with provided RTP capabilities`);
+        }
+
+        const transport = await this.createBotPlainTransport(data.transport || {});
+        const consumer = await transport.consume({
+            producerId,
+            rtpCapabilities,
+            paused: Boolean(data.paused),
+            appData: {
+                peerId: bot.id,
+                peerName: bot.peer_name,
+                bot: true,
+                bridge: bot.bridge,
+            },
+        });
+
+        bot.addConsumer(consumer, transport, { producerId });
+
+        log.info('[BotParticipant] consumer attached', {
+            room_id: this.id,
+            bot_id: bot.id,
+            consumer_id: consumer.id,
+            producer_id: producerId,
+            kind: consumer.kind,
+            tuple: transport.tuple,
+        });
+
+        return {
+            bot: bot.toPeerSnapshot(),
+            consumer: {
+                id: consumer.id,
+                producerId,
+                kind: consumer.kind,
+                rtpParameters: consumer.rtpParameters,
+            },
+            transport: {
+                id: transport.id,
+                tuple: transport.tuple,
+                rtcpTuple: transport.rtcpTuple,
+                srtpParameters: transport.srtpParameters,
+            },
+        };
+    }
+
+    recordBotTelemetry(botId, data = {}) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) return;
+
+        if (Number.isFinite(data.rtpBytesIn)) bot.recordRtpIn(data.rtpBytesIn);
+        if (Number.isFinite(data.rtpBytesOut)) bot.recordRtpOut(data.rtpBytesOut);
+        bot.recordLatency({
+            asrMs: data.asrMs,
+            llmMs: data.llmMs,
+            ttsMs: data.ttsMs,
+        });
+
+        return bot;
+    }
+
     async removePeer(socket_id) {
         if (!this.peers.has(socket_id)) return;
 
@@ -521,6 +802,7 @@ module.exports = class Room {
         peer.close();
 
         this.peers.delete(socket_id);
+        this.bots.delete(socket_id);
 
         if (this.getPeers().size === 0) {
             this.closeRouter();

@@ -74,6 +74,8 @@ describe('test-ServerAPI', () => {
                             npub: 'johndoe@npub1',
                             pubkey: 'johndoe@pubkey1',
                             lnaddress: 'johndoe@lnpeer1.com',
+                            bot: false,
+                            botState: '',
                         },
                     ],
                 },
@@ -152,12 +154,12 @@ describe('test-ServerAPI', () => {
             result.should.equal('jwtToken');
 
             signStub
-                .calledWith({ data: 'encryptedPayload' }, 'mirotalksfu_jwt_secret', { expiresIn: '1h' })
+                .calledWith({ data: 'encryptedPayload' }, config.jwt.key, { expiresIn: '1h' })
                 .should.be.true();
             encryptStub
                 .calledWith(
                     JSON.stringify({ username: 'user', password: 'pass', presenter: 'true' }),
-                    'mirotalksfu_jwt_secret',
+                    config.jwt.key,
                 )
                 .should.be.true();
 

@@ -121,6 +121,130 @@ paths:
                         $ref: '#/definitions/TokenResponse'
                 '403':
                     description: 'Unauthorized!'
+    /bots:
+        post:
+            tags:
+                - 'bots'
+            summary: 'Create native bot participant'
+            description: 'Create a trusted server-side bot participant in a room.'
+            parameters:
+                - in: body
+                  name: bot
+                  schema:
+                      $ref: '#/definitions/BotCreateRequest'
+            consumes:
+                - 'application/json'
+            produces:
+                - 'application/json'
+            security:
+                - secretApiKey: []
+            responses:
+                '201':
+                    description: 'Bot created'
+                    schema:
+                        $ref: '#/definitions/BotResponse'
+                '403':
+                    description: 'Unauthorized!'
+    /rooms/{roomId}/bots:
+        get:
+            tags:
+                - 'bots'
+            summary: 'List native bot participants'
+            parameters:
+                - in: path
+                  name: roomId
+                  required: true
+                  type: string
+            produces:
+                - 'application/json'
+            security:
+                - secretApiKey: []
+            responses:
+                '200':
+                    description: 'Bots listed'
+    /rooms/{roomId}/bots/{botId}/state:
+        post:
+            tags:
+                - 'bots'
+            summary: 'Set native bot state'
+            parameters:
+                - in: path
+                  name: roomId
+                  required: true
+                  type: string
+                - in: path
+                  name: botId
+                  required: true
+                  type: string
+                - in: body
+                  name: state
+                  schema:
+                      $ref: '#/definitions/BotStateRequest'
+            consumes:
+                - 'application/json'
+            produces:
+                - 'application/json'
+            security:
+                - secretApiKey: []
+            responses:
+                '200':
+                    description: 'Bot state updated'
+    /rooms/{roomId}/bots/{botId}/producers:
+        post:
+            tags:
+                - 'bots'
+            summary: 'Create bot RTP producer'
+            description: 'Create a mediasoup PlainTransport producer for generated bot audio or video.'
+            parameters:
+                - in: path
+                  name: roomId
+                  required: true
+                  type: string
+                - in: path
+                  name: botId
+                  required: true
+                  type: string
+                - in: body
+                  name: producer
+                  schema:
+                      $ref: '#/definitions/BotProducerRequest'
+            consumes:
+                - 'application/json'
+            produces:
+                - 'application/json'
+            security:
+                - secretApiKey: []
+            responses:
+                '201':
+                    description: 'Bot producer created'
+    /rooms/{roomId}/bots/{botId}/consumers:
+        post:
+            tags:
+                - 'bots'
+            summary: 'Attach bot RTP consumer'
+            description: 'Create a mediasoup PlainTransport consumer for room audio/video capture.'
+            parameters:
+                - in: path
+                  name: roomId
+                  required: true
+                  type: string
+                - in: path
+                  name: botId
+                  required: true
+                  type: string
+                - in: body
+                  name: consumer
+                  schema:
+                      $ref: '#/definitions/BotConsumerRequest'
+            consumes:
+                - 'application/json'
+            produces:
+                - 'application/json'
+            security:
+                - secretApiKey: []
+            responses:
+                '201':
+                    description: 'Bot consumer attached'
 
 securityDefinitions:
     secretApiKey:
@@ -206,6 +330,63 @@ definitions:
         properties:
             token:
                 type: string
+    BotCreateRequest:
+        type: object
+        properties:
+            roomId:
+                type: string
+            name:
+                type: string
+                default: 'HiveVoiceBot'
+            controllingNpub:
+                type: string
+            allowedRoomOwnerNpubs:
+                type: array
+                items:
+                    type: string
+            bridge:
+                type: object
+    BotStateRequest:
+        type: object
+        properties:
+            state:
+                type: string
+                enum:
+                    - listening
+                    - thinking
+                    - speaking
+                    - idle
+                    - error
+    BotProducerRequest:
+        type: object
+        properties:
+            kind:
+                type: string
+                enum:
+                    - audio
+                    - video
+            mediaType:
+                type: string
+            transport:
+                type: object
+            rtpParameters:
+                type: object
+    BotConsumerRequest:
+        type: object
+        properties:
+            producerId:
+                type: string
+            transport:
+                type: object
+            rtpCapabilities:
+                type: object
+    BotResponse:
+        type: object
+        properties:
+            room:
+                type: string
+            bot:
+                type: object
     Peer:
         type: object
         properties:
@@ -218,6 +399,10 @@ definitions:
             pubkey:
                 type: string
             lnaddress:
+                type: string
+            bot:
+                type: boolean
+            botState:
                 type: string
     Meeting:
         type: object

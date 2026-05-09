@@ -52,6 +52,8 @@ module.exports = class ServerApi {
                                             peer_npub = '',
                                             peer_pubkey = '',
                                             peer_lnaddress = '',
+                                            peer_bot = false,
+                                            peer_bot_state = '',
                                         } = {},
                                     } = peer || {};
     
@@ -61,6 +63,8 @@ module.exports = class ServerApi {
                                         npub: peer_npub,
                                         pubkey: peer_pubkey,
                                         lnaddress: peer_lnaddress,
+                                        bot: Boolean(peer_bot || peer.isBot),
+                                        botState: peer_bot_state,
                                     };
                                 } catch (peerError) {
                                     console.error('Error processing peer:', peerError);
