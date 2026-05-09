@@ -55,8 +55,8 @@ curl -sS -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/producers"
   -H "Content-Type: application/json" \
   --data '{
     "kind": "audio",
-    "mediaType": "audio",
-    "transport": { "listenIp": "127.0.0.1", "rtcpMux": true, "comedia": true },
+    "mediaType": "audioType",
+    "transport": { "listenIp": "127.0.0.1", "rtcpMux": true, "comedia": false },
     "rtpParameters": {
       "codecs": [{
         "mimeType": "audio/opus",
@@ -70,14 +70,24 @@ curl -sS -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/producers"
   }' | jq
 ```
 
-Video works the same way with `"kind": "video"` and compatible H264/VP8 RTP
-parameters.
+Video works the same way with `"kind": "video"` and compatible VP8/H264 RTP
+parameters. The current HiveVoiceSidecar path uses VP8, payload type `102`, and
+SSRC `33333333`. Browser clients consume the bot video producer as a normal
+participant video track.
+
+When a producer is created, HiveTalk broadcasts `newProducers` with
+`audioType` or `videoType`. Browser clients also receive a bot participant entry
+early enough to render a tile before media arrives.
 
 ## Capture room media for ASR
 
 `POST /api/v1/rooms/:roomId/bots/:botId/consumers` creates a mediasoup
 `PlainTransport` consumer for an existing room producer. Feed the returned RTP
 stream into ASR or a replacement media bridge.
+
+Use `GET /api/v1/rooms/:roomId/producers` to list room producers first. The
+HiveVoiceSidecar native capture loop filters out bot producers and attaches to
+non-bot `audioType` producers.
 
 ```bash
 curl -sS -X POST "http://localhost:3010/api/v1/rooms/Test/bots/BOT_ID/consumers" \
@@ -108,10 +118,15 @@ The room records:
 - RTP bytes in/out
 - ASR, LLM, and TTS latency
 
+Use `GET /api/v1/rooms/:roomId/bots/:botId/stats` to refresh mediasoup producer
+and consumer counters before returning telemetry.
+
 ## Lifecycle endpoints
 
 - `POST /api/v1/bots`
 - `GET /api/v1/rooms/:roomId/bots`
+- `GET /api/v1/rooms/:roomId/bots/:botId/stats`
+- `GET /api/v1/rooms/:roomId/producers`
 - `DELETE /api/v1/rooms/:roomId/bots/:botId`
 - `POST /api/v1/rooms/:roomId/bots/:botId/mute`
 - `POST /api/v1/rooms/:roomId/bots/:botId/unmute`
@@ -136,4 +151,3 @@ Current security posture for this branch: `npm audit` reports zero
 vulnerabilities. The lockfile carries patched transitives, and `package.json`
 pins an override for `serialize-javascript` until Mocha ships a non-vulnerable
 dependency range.
-

@@ -671,12 +671,15 @@ module.exports = class Room {
         if (!['audio', 'video'].includes(kind)) throw new Error('Bot producer kind must be "audio" or "video"');
         if (!rtpParameters) throw new Error('Bot producer rtpParameters are required');
 
+        const producerMediaType =
+            mediaType || (kind === 'audio' ? 'audioType' : kind === 'video' ? 'videoType' : kind);
+
         const transport = await this.createBotPlainTransport(data.transport || {});
         const producer = await transport.produce({
             kind,
             rtpParameters,
             appData: {
-                mediaType: mediaType || kind,
+                mediaType: producerMediaType,
                 peerId: bot.id,
                 peerName: bot.peer_name,
                 bot: true,
@@ -684,7 +687,7 @@ module.exports = class Room {
             },
         });
 
-        bot.addProducer(producer, transport, { mediaType: mediaType || kind });
+        bot.addProducer(producer, transport, { mediaType: producerMediaType });
 
         this.broadCast(bot.id, 'newProducers', [
             {
@@ -692,7 +695,7 @@ module.exports = class Room {
                 producer_socket_id: bot.id,
                 peer_name: bot.peer_name,
                 peer_info: bot.peer_info,
-                type: mediaType || kind,
+                type: producerMediaType,
             },
         ]);
 
@@ -709,7 +712,7 @@ module.exports = class Room {
             producer: {
                 id: producer.id,
                 kind: producer.kind,
-                type: mediaType || kind,
+                type: producerMediaType,
             },
             transport: {
                 id: transport.id,
@@ -791,6 +794,13 @@ module.exports = class Room {
             ttsMs: data.ttsMs,
         });
 
+        return bot;
+    }
+
+    async refreshBotParticipantStats(botId) {
+        const bot = this.getBotParticipant(botId);
+        if (!bot) return;
+        await bot.refreshMediasoupStats();
         return bot;
     }
 

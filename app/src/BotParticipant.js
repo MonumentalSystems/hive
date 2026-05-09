@@ -18,7 +18,7 @@ module.exports = class BotParticipant {
         this.state = BOT_STATES.has(data.state) ? data.state : 'listening';
         this.muted = Boolean(data.muted);
         this.peer_audio = !this.muted;
-        this.peer_video = true;
+        this.peer_video = Boolean(data.peer_video);
         this.peer_presenter = false;
         this.peer_audio_volume = 100;
         this.peer_video_privacy = false;
@@ -65,7 +65,7 @@ module.exports = class BotParticipant {
             peer_presenter: false,
             peer_audio: !this.muted,
             peer_audio_volume: 100,
-            peer_video: true,
+            peer_video: this.peer_video,
             peer_video_privacy: false,
             peer_recording: false,
             peer_hand: false,
@@ -119,6 +119,14 @@ module.exports = class BotParticipant {
     addProducer(producer, transport, metadata = {}) {
         this.producers.set(producer.id, producer);
         if (transport) this.addTransport(transport, `${producer.kind}-producer`);
+        if (producer.kind === 'video') {
+            this.peer_video = true;
+            this.peer_info.peer_video = true;
+        }
+        if (producer.kind === 'audio') {
+            this.peer_audio = !this.muted;
+            this.peer_info.peer_audio = !this.muted;
+        }
         this.telemetry.producerCreated += 1;
         this.recordEvent('bot_producer_created', {
             producerId: producer.id,
@@ -166,6 +174,45 @@ module.exports = class BotParticipant {
     recordRtpOut(bytes) {
         this.telemetry.rtpBytesOut += Number(bytes) || 0;
         return this.recordEvent('bot_rtp_out', { bytes: Number(bytes) || 0 });
+    }
+
+    async refreshMediasoupStats() {
+        let rtpBytesIn = 0;
+        let rtpBytesOut = 0;
+        let rtpPacketsIn = 0;
+        let rtpPacketsOut = 0;
+
+        for (const producer of this.producers.values()) {
+            const stats = await producer.getStats().catch(() => []);
+            for (const report of stats || []) {
+                rtpBytesIn += Number(report.byteCount ?? report.bytesReceived ?? 0) || 0;
+                rtpPacketsIn += Number(report.packetCount ?? report.packetsReceived ?? 0) || 0;
+            }
+        }
+
+        for (const consumer of this.consumers.values()) {
+            const stats = await consumer.getStats().catch(() => []);
+            for (const report of stats || []) {
+                rtpBytesOut += Number(report.byteCount ?? report.bytesSent ?? 0) || 0;
+                rtpPacketsOut += Number(report.packetCount ?? report.packetsSent ?? 0) || 0;
+            }
+        }
+
+        this.telemetry.rtpBytesIn = rtpBytesIn;
+        this.telemetry.rtpBytesOut = rtpBytesOut;
+        this.telemetry.rtpPacketsIn = rtpPacketsIn;
+        this.telemetry.rtpPacketsOut = rtpPacketsOut;
+        this.telemetry.lastStatsAt = new Date().toISOString();
+
+        return {
+            rtpBytesIn,
+            rtpBytesOut,
+            rtpPacketsIn,
+            rtpPacketsOut,
+            producers: this.producers.size,
+            consumers: this.consumers.size,
+            transports: this.transports.size,
+        };
     }
 
     recordLatency(data = {}) {

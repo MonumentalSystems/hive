@@ -1144,6 +1144,7 @@ class RoomClient {
         this.socket.on('setVideoOff', this.handleSetVideoOff);
         this.socket.on('removeMe', this.handleRemoveMe);
         this.socket.on('refreshParticipantsCount', this.handleRefreshParticipantsCount);
+        this.socket.on('botParticipantCreated', this.handleBotParticipantCreated);
         this.socket.on('newProducers', this.handleNewProducers);
         this.socket.on('message', this.handleMessage);
         this.socket.on('roomAction', this.handleRoomAction);
@@ -1219,10 +1220,27 @@ class RoomClient {
         }
     };
 
+    handleBotParticipantCreated = (bot) => {
+        console.log('SocketOn Bot participant created:', bot);
+        const peer_info = bot.peer_info || {};
+        if (!peer_info.peer_id && bot.id) peer_info.peer_id = bot.id;
+        if (!peer_info.peer_name && bot.peer_name) peer_info.peer_name = bot.peer_name;
+        if (!peer_info.peer_id) return;
+        this.peers.set(peer_info.peer_id, { peer_info });
+        participantsCount = this.peers.size;
+        if (!peer_info.peer_video) this.setVideoOff(peer_info, true);
+        this.refreshParticipantsCount();
+    };
+
     handleNewProducers = async (data) => {
         if (data.length > 0) {
             console.log('SocketOn New producers', data);
             for (let { producer_id, peer_name, peer_info, type } of data) {
+                if (peer_info?.peer_bot && peer_info.peer_id) {
+                    this.peers.set(peer_info.peer_id, { peer_info });
+                    participantsCount = this.peers.size;
+                    if (!peer_info.peer_video) this.setVideoOff(peer_info, true);
+                }
                 await this.consume(producer_id, peer_name, peer_info, type);
             }
         }

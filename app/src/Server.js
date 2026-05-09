@@ -1443,6 +1443,33 @@ function startServer() {
         res.json({ bots: room.getBotParticipants().map((bot) => bot.toPeerSnapshot()) });
     });
 
+    app.get([restApi.basePath + '/rooms/:roomId/producers'], (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk list room producers');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        res.json({ producers: room.getProducerListForPeer() });
+    });
+
+    app.get([restApi.basePath + '/rooms/:roomId/bots/:botId/stats'], async (req, res) => {
+        const api = getAuthorizedApi(req, res, 'HiveTalk bot stats');
+        if (!api) return;
+
+        const room = roomList.get(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        try {
+            const bot = await room.refreshBotParticipantStats(req.params.botId);
+            if (!bot) return res.status(404).json({ error: 'Bot not found' });
+            res.json({ telemetry: bot.toTelemetry() });
+        } catch (error) {
+            log.error('HiveTalk bot stats error', error.message);
+            res.status(400).json({ error: error.message });
+        }
+    });
+
     app.delete([restApi.basePath + '/rooms/:roomId/bots/:botId'], (req, res) => {
         const api = getAuthorizedApi(req, res, 'HiveTalk remove bot');
         if (!api) return;
